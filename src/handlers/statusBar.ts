@@ -5,11 +5,15 @@
 
 import * as vscode from 'vscode';
 import { RelayApiResponse, CostStats } from '../interfaces/types';
-import { formatCost, formatPercentage, formatTooltipLine, formatLargeNumber, formatRemainingTime } from '../utils/formatter';
+import { formatCost, formatPercentage, formatTooltipLine, formatLargeNumber, formatRemainingTime, formatNumberWithDecimals } from '../utils/formatter';
 import { getStatusBarColor } from '../utils/colorHelper';
 import { log } from '../utils/logger';
-import { t } from '../utils/i18n';
+// import { t } from '../utils/i18n'; // i18n 已移除
 import * as ConfigManager from '../utils/configManager';
+
+// 导入版本信息
+const packageJson = require('../../package.json');
+const extensionVersion = packageJson.version;
 
 /**
  * 创建状态栏项
@@ -47,8 +51,61 @@ export function updateStatusBar(
   try {
     log('[状态栏] 开始更新状态栏显示...');
 
-    // 提取限制数据
+    // 输出完整的API响应数据
+    log('[状态栏] API响应数据详情:');
+    log(`[状态栏] 完整响应数据: ${JSON.stringify(data, null, 2)}`);
+    log(`[状态栏] 用户信息: ID=${data.data.id}, 名称=${data.data.name}, 状态=${data.data.isActive ? '激活' : '未激活'}, 权限=${data.data.permissions}`);
+    log(`[状态栏] 时间信息: 创建时间=${data.data.createdAt}, 激活时间=${data.data.activatedAt}`);
+    if (data.data.expiresAt) {
+      log(`[状态栏] 过期时间=${data.data.expiresAt}, 过期模式=${data.data.expirationMode}`);
+    }
+    if (data.data.activationDays > 0) {
+      log(`[状态栏] 激活天数=${data.data.activationDays}天`);
+    }
+
+    // 输出使用统计
+    const usage = data.data.usage;
+    log(`[状态栏] 使用统计 - 总请求: ${usage.total.requests}, 总Token: ${usage.total.allTokens}, 输入Token: ${usage.total.inputTokens}, 输出Token: ${usage.total.outputTokens}`);
+    log(`[状态栏] 使用统计 - 缓存创建Token: ${usage.total.cacheCreateTokens}, 缓存读取Token: ${usage.total.cacheReadTokens}, 总费用: ${usage.total.formattedCost}`);
+
+    // 输出使用效率分析
+    const avgTokensPerRequest = usage.total.requests > 0 ? Math.round(usage.total.allTokens / usage.total.requests) : 0;
+    const avgCostPerRequest = usage.total.requests > 0 ? usage.total.cost / usage.total.requests : 0;
+    const totalCacheTokens = usage.total.cacheCreateTokens + usage.total.cacheReadTokens;
+    const cacheEfficiency = usage.total.allTokens > 0 ? ((totalCacheTokens / usage.total.allTokens) * 100).toFixed(1) : '0.0';
+
+    log(`[状态栏] 使用效率分析 - 平均每次请求: ${avgTokensPerRequest} Token, 平均费用: $${formatNumberWithDecimals(avgCostPerRequest, 4)}, 缓存使用率: ${cacheEfficiency}%`);
+
+    // 输出限制信息
     const limits = data.data.limits;
+    log(`[状态栏] 限制信息 - 每日限制: ${limits.dailyCostLimit}, 当前每日使用: ${limits.currentDailyCost}`);
+    log(`[状态栏] 限制信息 - 总限制: ${limits.totalCostLimit}, 当前总使用: ${limits.currentTotalCost}`);
+    log(`[状态栏] 限制信息 - Opus周限制: ${limits.weeklyOpusCostLimit}, 当前Opus周使用: ${limits.weeklyOpusCost}`);
+    log(`[状态栏] 限制信息 - 窗口限制: ${limits.rateLimitCost}, 当前窗口使用: ${limits.currentWindowCost}`);
+    if (limits.windowRemainingSeconds !== null && limits.windowRemainingSeconds > 0) {
+      log(`[状态栏] 限制信息 - 窗口剩余时间: ${limits.windowRemainingSeconds}秒`);
+    }
+
+    // 输出账户信息
+    const accounts = data.data.accounts;
+    if (accounts.claudeAccountId || accounts.geminiAccountId || accounts.openaiAccountId) {
+      log(`[状态栏] 关联账户 - Claude: ${accounts.claudeAccountId || '无'}, Gemini: ${accounts.geminiAccountId || '无'}, OpenAI: ${accounts.openaiAccountId || '无'}`);
+    } else {
+      log('[状态栏] 关联账户: 无');
+    }
+
+    // 输出限制规则
+    const restrictions = data.data.restrictions;
+    if (restrictions.enableModelRestriction && restrictions.restrictedModels.length > 0) {
+      log(`[状态栏] 模型限制: 已启用, 限制模型: ${restrictions.restrictedModels.join(', ')}`);
+    } else {
+      log('[状态栏] 模型限制: 未启用');
+    }
+    if (restrictions.enableClientRestriction && restrictions.allowedClients.length > 0) {
+      log(`[状态栏] 客户端限制: 已启用, 允许客户端: ${restrictions.allowedClients.join(', ')}`);
+    } else {
+      log('[状态栏] 客户端限制: 未启用');
+    }
 
     // 计算每日费用统计
     const dailyStats = calculateCostStats(
@@ -68,7 +125,7 @@ export function updateStatusBar(
       );
 
       // 有周限制时，显示：$(graph) 日:$X/$Y Z% | 周:$A/$B C%
-      statusBarItem.text = `$(graph) ${t('statusBar.daily')}:${dailyStats.formattedUsed}/${dailyStats.formattedLimit} ${dailyStats.formattedPercentage}% | ${t('statusBar.window')}:${windowStats.formattedUsed}/${windowStats.formattedLimit} ${windowStats.formattedPercentage}%`;
+      statusBarItem.text = `$(graph) 日:${dailyStats.formattedUsed}/${dailyStats.formattedLimit} ${dailyStats.formattedPercentage}% | 周:${windowStats.formattedUsed}/${windowStats.formattedLimit} ${windowStats.formattedPercentage}%`;
 
       // 使用周限制的百分比来设置颜色（周限制优先级更高）
       statusBarItem.color = getStatusBarColor(windowStats.percentage);
@@ -115,7 +172,7 @@ export function showErrorStatus(
   statusBarItem.text = `$(alert) ${errorMessage}`;
   statusBarItem.color = new vscode.ThemeColor('statusBarItem.errorForeground');
   statusBarItem.tooltip = new vscode.MarkdownString(
-    `## ⚠️ ${t('tooltips.title')}\n\n**${t('errors.apiError')}：** ${errorMessage}\n\n${t('tooltips.clickToRefresh')}`
+    `## ⚠️ ⚡ Claude Relay Meter\n\n**错误：** ${errorMessage}\n\n点击状态栏刷新数据`
   );
   statusBarItem.show();
 }
@@ -126,9 +183,9 @@ export function showErrorStatus(
  */
 export function showLoadingStatus(statusBarItem: vscode.StatusBarItem): void {
   log('[状态栏] 显示加载状态');
-  statusBarItem.text = `$(sync~spin) ${t('statusBar.loading')}`;
+  statusBarItem.text = '$(sync~spin) 加载中...';
   statusBarItem.color = new vscode.ThemeColor('statusBarItem.foreground');
-  statusBarItem.tooltip = new vscode.MarkdownString(t('statusBar.loading'));
+  statusBarItem.tooltip = new vscode.MarkdownString('加载中...');
   statusBarItem.show();
 }
 
@@ -161,6 +218,7 @@ function calculateCostStats(used: number, limit: number): CostStats {
  */
 function createTooltip(data: RelayApiResponse, apiUrl: string, apiId: string): vscode.MarkdownString {
   const limits = data.data.limits;
+  const usage = data.data.usage;
 
   // 计算三种费用统计
   const dailyStats = calculateCostStats(limits.currentDailyCost, limits.dailyCostLimit);
@@ -173,62 +231,166 @@ function createTooltip(data: RelayApiResponse, apiUrl: string, apiId: string): v
   tooltip.supportHtml = true;
   tooltip.supportThemeIcons = true;
 
-  // 标题和用户信息
-  tooltip.appendMarkdown(`## ${t('tooltips.title')}\n`);
-  tooltip.appendMarkdown(`**${t('tooltips.user')}：** ${data.data.name}\n\n`);
+  // 标题和基本用户信息
+  tooltip.appendMarkdown(`## ⚡ Claude Relay Meter v${extensionVersion}\n`);
+  tooltip.appendMarkdown(`### 👤 用户信息\n`);
+  tooltip.appendMarkdown(`**名称：** ${data.data.name}\n`);
+  tooltip.appendMarkdown(`**ID：** \`${data.data.id}\`\n`);
+  tooltip.appendMarkdown(`**描述：** ${data.data.description || '无'}\n`);
+  tooltip.appendMarkdown(`**状态：** ${data.data.isActive ? '✅ 激活' : '❌ 未激活'}\n`);
+  tooltip.appendMarkdown(`**权限：** ${data.data.permissions}\n`);
+
+  // 时间信息
+  const createdDate = new Date(data.data.createdAt).toLocaleString();
+  const activatedDate = new Date(data.data.activatedAt).toLocaleString();
+  tooltip.appendMarkdown(`**创建时间：** ${createdDate}\n`);
+  tooltip.appendMarkdown(`**激活时间：** ${activatedDate}\n`);
+
+  if (data.data.expiresAt) {
+    const expiredDate = new Date(data.data.expiresAt).toLocaleString();
+    tooltip.appendMarkdown(`**过期时间：** ${expiredDate}\n`);
+    tooltip.appendMarkdown(`**过期模式：** ${data.data.expirationMode}\n`);
+  }
+  if (data.data.activationDays > 0) {
+    tooltip.appendMarkdown(`**激活天数：** ${data.data.activationDays} 天\n`);
+  }
+  tooltip.appendMarkdown('\n');
+
+  // 费用限制信息
+  tooltip.appendMarkdown(`### 💰 费用限制\n`);
 
   // 每日费用限制
-  tooltip.appendMarkdown(`### 📊 ${t('tooltips.dailyCostLimit')}\n`);
-  tooltip.appendMarkdown(
-    `**${t('tooltips.usageStatus')}：** ${dailyStats.formattedUsed} / ${dailyStats.formattedLimit}  ${getColoredPercentage(dailyStats)}\n\n`
-  );
+  tooltip.appendMarkdown(`**每日限制：** ${dailyStats.formattedUsed} / ${dailyStats.formattedLimit}  ${getColoredPercentage(dailyStats)}\n`);
+  if (limits.dailyCostLimit > 0) {
+    tooltip.appendMarkdown(`**每日剩余：** ${formatCost(Math.max(0, limits.dailyCostLimit - limits.currentDailyCost))}\n`);
+  }
 
   // 总费用限制
   if (totalStats.limit > 0) {
-    tooltip.appendMarkdown(`### 💰 ${t('tooltips.totalCostLimit')}\n`);
-    tooltip.appendMarkdown(
-      `**${t('tooltips.usageStatus')}：** ${totalStats.formattedUsed} / ${totalStats.formattedLimit}  ${getColoredPercentage(totalStats)}\n\n`
-    );
+    tooltip.appendMarkdown(`**总限制：** ${totalStats.formattedUsed} / ${totalStats.formattedLimit}  ${getColoredPercentage(totalStats)}\n`);
+    tooltip.appendMarkdown(`**总剩余：** ${formatCost(Math.max(0, limits.totalCostLimit - limits.currentTotalCost))}\n`);
   }
 
-  // 费率限制（包括 Opus 周费用和周限制）
+  // Opus 周费用限制
   if (opusStats.limit > 0) {
-    tooltip.appendMarkdown(`### 🚀 ${t('tooltips.rateLimitTitle')}\n`);
+    tooltip.appendMarkdown(`**Opus周限制：** ${opusStats.formattedUsed} / ${opusStats.formattedLimit}  ${getColoredPercentage(opusStats)}\n`);
+    tooltip.appendMarkdown(`**Opus周剩余：** ${formatCost(Math.max(0, limits.weeklyOpusCostLimit - limits.weeklyOpusCost))}\n`);
+  }
 
-    // Opus 模型周费用
-    tooltip.appendMarkdown(
-      `**${t('tooltips.opusLabel')}：** ${opusStats.formattedUsed} / ${opusStats.formattedLimit}  ${getColoredPercentage(opusStats)}\n\n`
-    );
+  // 检测是否有周限制（rate limit window）
+  const hasWindowLimit = limits.currentWindowCost > 0 && limits.rateLimitCost > 0;
+  if (hasWindowLimit) {
+    const windowStats = calculateCostStats(limits.currentWindowCost, limits.rateLimitCost);
+    tooltip.appendMarkdown(`**窗口限制：** ${windowStats.formattedUsed} / ${windowStats.formattedLimit}  ${getColoredPercentage(windowStats)}\n`);
+    tooltip.appendMarkdown(`**窗口剩余：** ${formatCost(Math.max(0, limits.rateLimitCost - limits.currentWindowCost))}\n`);
 
-    // 检测是否有周限制（rate limit window）
-    const hasWindowLimit = limits.currentWindowCost > 0 && limits.rateLimitCost > 0;
-    if (hasWindowLimit) {
-      // 计算周限制统计
-      const windowStats = calculateCostStats(limits.currentWindowCost, limits.rateLimitCost);
-
-      // 周限制显示
-      tooltip.appendMarkdown(
-        `**${t('tooltips.windowLimit')}：** ${windowStats.formattedUsed} / ${windowStats.formattedLimit}  ${getColoredPercentage(windowStats)}\n\n`
-      );
-
-      // 剩余时间显示
-      if (limits.windowRemainingSeconds !== null && limits.windowRemainingSeconds > 0) {
-        const remainingTime = formatRemainingTime(limits.windowRemainingSeconds, t);
-        tooltip.appendMarkdown(
-          `**${t('tooltips.resetTime')}：** ${t('tooltips.resetsIn', { time: remainingTime })}\n\n`
-        );
-      }
+    // 剩余时间显示
+    if (limits.windowRemainingSeconds !== null && limits.windowRemainingSeconds > 0) {
+      const remainingTime = formatRemainingTime(limits.windowRemainingSeconds);
+      tooltip.appendMarkdown(`**重置时间：** ${remainingTime}\n`);
+    } else if (limits.windowRemainingSeconds !== null && limits.windowRemainingSeconds <= 0) {
+      tooltip.appendMarkdown(`**重置时间：** 已过期\n`);
     }
 
-    tooltip.appendMarkdown('\n');
+    if (limits.windowStartTime && limits.windowEndTime) {
+      const startTime = new Date(limits.windowStartTime).toLocaleString();
+      const endTime = new Date(limits.windowEndTime).toLocaleString();
+      tooltip.appendMarkdown(`**窗口周期：** ${startTime} ~ ${endTime}\n`);
+    }
   }
 
-  // 其他统计信息（合并到一行，无标题）
-  tooltip.appendMarkdown(
-    `**${t('tooltips.totalRequests')}：** ${formatLargeNumber(data.data.usage.total.requests)} | ` +
-    `**Token：** ${formatLargeNumber(data.data.usage.total.allTokens)} | ` +
-    `**${t('tooltips.totalCost')}：** ${data.data.usage.total.formattedCost}\n\n`
-  );
+  // Token 限制和并发限制
+  if (limits.tokenLimit > 0) {
+    tooltip.appendMarkdown(`**Token限制：** ${formatLargeNumber(limits.currentWindowTokens)} / ${formatLargeNumber(limits.tokenLimit)}\n`);
+  }
+  if (limits.concurrencyLimit > 0) {
+    tooltip.appendMarkdown(`**并发限制：** ${limits.currentWindowRequests} / ${limits.concurrencyLimit}\n`);
+  }
+  if (limits.rateLimitRequests > 0) {
+    tooltip.appendMarkdown(`**请求数限制：** ${limits.currentWindowRequests} / ${limits.rateLimitRequests}\n`);
+  }
+  tooltip.appendMarkdown('\n');
+
+  // 详细使用统计
+  tooltip.appendMarkdown(`### 📊 详细使用统计\n`);
+
+  // 请求数和 Token 统计
+  tooltip.appendMarkdown(`**总请求数：** ${formatLargeNumber(usage.total.requests)}\n`);
+  tooltip.appendMarkdown(`**总Token数：** ${formatLargeNumber(usage.total.allTokens)}\n`);
+  tooltip.appendMarkdown(`**输入Token：** ${formatLargeNumber(usage.total.inputTokens)}\n`);
+  tooltip.appendMarkdown(`**输出Token：** ${formatLargeNumber(usage.total.outputTokens)}\n`);
+  tooltip.appendMarkdown(`**缓存创建Token：** ${formatLargeNumber(usage.total.cacheCreateTokens)}\n`);
+  tooltip.appendMarkdown(`**缓存读取Token：** ${formatLargeNumber(usage.total.cacheReadTokens)}\n`);
+
+  // 费用信息
+  tooltip.appendMarkdown(`**总费用：** ${usage.total.formattedCost}\n`);
+  tooltip.appendMarkdown(`**精确费用：** $${formatNumberWithDecimals(usage.total.cost, 6)}\n\n`);
+
+  // 使用效率分析（基于现有数据）
+  tooltip.appendMarkdown(`### 📈 使用效率分析\n`);
+
+  // 计算平均每次请求的Token和费用
+  const avgTokensPerRequest = usage.total.requests > 0 ? Math.round(usage.total.allTokens / usage.total.requests) : 0;
+  const avgCostPerRequest = usage.total.requests > 0 ? usage.total.cost / usage.total.requests : 0;
+  const avgInputTokensPerRequest = usage.total.requests > 0 ? Math.round(usage.total.inputTokens / usage.total.requests) : 0;
+  const avgOutputTokensPerRequest = usage.total.requests > 0 ? Math.round(usage.total.outputTokens / usage.total.requests) : 0;
+
+  tooltip.appendMarkdown(`**平均每次请求：** ${formatLargeNumber(avgTokensPerRequest)} Token\n`);
+  tooltip.appendMarkdown(`&nbsp;&nbsp;&nbsp;&nbsp;输入: ${formatLargeNumber(avgInputTokensPerRequest)} | 输出: ${formatLargeNumber(avgOutputTokensPerRequest)}\n`);
+  tooltip.appendMarkdown(`**平均每次请求费用：** $${formatNumberWithDecimals(avgCostPerRequest, 4)}\n`);
+
+  // 缓存效率
+  const totalCacheTokens = usage.total.cacheCreateTokens + usage.total.cacheReadTokens;
+  const cacheEfficiency = usage.total.allTokens > 0 ? ((totalCacheTokens / usage.total.allTokens) * 100).toFixed(1) : '0.0';
+  tooltip.appendMarkdown(`**缓存使用率：** ${cacheEfficiency}% (创建: ${formatLargeNumber(usage.total.cacheCreateTokens)}, 读取: ${formatLargeNumber(usage.total.cacheReadTokens)})\n\n`);
+
+  // Token分布统计
+  tooltip.appendMarkdown(`### 🎯 Token分布统计\n`);
+
+  if (usage.total.allTokens > 0) {
+    const inputPercentage = ((usage.total.inputTokens / usage.total.allTokens) * 100).toFixed(1);
+    const outputPercentage = ((usage.total.outputTokens / usage.total.allTokens) * 100).toFixed(1);
+    const cacheCreatePercentage = ((usage.total.cacheCreateTokens / usage.total.allTokens) * 100).toFixed(1);
+    const cacheReadPercentage = ((usage.total.cacheReadTokens / usage.total.allTokens) * 100).toFixed(1);
+
+    tooltip.appendMarkdown(`**输入Token：** ${formatLargeNumber(usage.total.inputTokens)} (${inputPercentage}%)\n`);
+    tooltip.appendMarkdown(`**输出Token：** ${formatLargeNumber(usage.total.outputTokens)} (${outputPercentage}%)\n`);
+    tooltip.appendMarkdown(`**缓存创建Token：** ${formatLargeNumber(usage.total.cacheCreateTokens)} (${cacheCreatePercentage}%)\n`);
+    tooltip.appendMarkdown(`**缓存读取Token：** ${formatLargeNumber(usage.total.cacheReadTokens)} (${cacheReadPercentage}%)\n\n`);
+  }
+
+  // 账户信息
+  tooltip.appendMarkdown(`### 🔗 关联账户\n`);
+  if (data.data.accounts.claudeAccountId) {
+    tooltip.appendMarkdown(`**Claude账户：** \`${data.data.accounts.claudeAccountId}\`\n`);
+  }
+  if (data.data.accounts.geminiAccountId) {
+    tooltip.appendMarkdown(`**Gemini账户：** \`${data.data.accounts.geminiAccountId}\`\n`);
+  }
+  if (data.data.accounts.openaiAccountId) {
+    tooltip.appendMarkdown(`**OpenAI账户：** \`${data.data.accounts.openaiAccountId}\`\n`);
+  }
+  if (!data.data.accounts.claudeAccountId && !data.data.accounts.geminiAccountId && !data.data.accounts.openaiAccountId) {
+    tooltip.appendMarkdown(`**关联账户：** 无\n`);
+  }
+  tooltip.appendMarkdown('\n');
+
+  // 限制规则
+  tooltip.appendMarkdown(`### ⚙️ 限制规则\n`);
+  if (data.data.restrictions.enableModelRestriction && data.data.restrictions.restrictedModels.length > 0) {
+    tooltip.appendMarkdown(`**模型限制：** 已启用\n`);
+    tooltip.appendMarkdown(`**限制模型：** ${data.data.restrictions.restrictedModels.join(', ')}\n`);
+  } else {
+    tooltip.appendMarkdown(`**模型限制：** 未启用\n`);
+  }
+
+  if (data.data.restrictions.enableClientRestriction && data.data.restrictions.allowedClients.length > 0) {
+    tooltip.appendMarkdown(`**客户端限制：** 已启用\n`);
+    tooltip.appendMarkdown(`**允许客户端：** ${data.data.restrictions.allowedClients.join(', ')}\n`);
+  } else {
+    tooltip.appendMarkdown(`**客户端限制：** 未启用\n`);
+  }
+  tooltip.appendMarkdown('\n');
 
   // 操作区域
   tooltip.appendMarkdown('---\n');
@@ -237,23 +399,23 @@ function createTooltip(data: RelayApiResponse, apiUrl: string, apiId: string): v
   const webDashboardUrl = `${apiUrl}/admin-next/api-stats?apiId=${apiId}`;
   const webDashboardArgs = encodeURIComponent(JSON.stringify({ url: webDashboardUrl }));
 
-  // 提示和操作按钮（合并到两行）
-  tooltip.appendMarkdown(`💡 **${t('tooltips.tip')}：** ${t('tooltips.clickToRefresh')}\n`);
+  // 提示和操作按钮
+  tooltip.appendMarkdown(`💡 **提示：** 点击状态栏刷新数据\n`);
   tooltip.appendMarkdown(
-    `[${t('commands.openSettings')}](command:claude-relay-meter.openSettings) | ` +
-    `[${t('tooltips.openWebDashboard')}](command:claude-relay-meter.openWebDashboard?${webDashboardArgs}) | ` +
-    `[${t('tooltips.reloadConfig')}](command:claude-relay-meter.manualReloadConfig)\n\n`
+    `[设置](command:claude-relay-meter.openSettings) | ` +
+    `[仪表盘](command:claude-relay-meter.openWebDashboard?${webDashboardArgs}) | ` +
+    `[重载配置](command:claude-relay-meter.manualReloadConfig)\n\n`
   );
 
   // 监听状态提示
   const watchEnabled = ConfigManager.isWatchEnabled();
   if (!watchEnabled) {
-    tooltip.appendMarkdown(`⚠️ ${t('tooltips.watchDisabled')}\n\n`);
+    tooltip.appendMarkdown(`⚠️ Claude Settings 监听已关闭\n\n`);
   }
 
   // 更新时间
   const now = new Date().toLocaleString();
-  tooltip.appendMarkdown(`🕐 ${t('tooltips.updateTime')}：${now}`);
+  tooltip.appendMarkdown(`🕐 更新时间：${now}`);
 
   return tooltip;
 }
@@ -323,14 +485,14 @@ export function showConfigPrompt(
   let tooltipMessage = '';
 
   if (missingConfig === 'apiUrl') {
-    statusText = `$(gear) ${t('statusBar.notConfiguredApiUrl')}`;
-    tooltipMessage = t('tooltips.pleaseConfigureApiUrl');
+    statusText = '$(gear) 未配置 API URL';
+    tooltipMessage = '请先配置 API URL（必填）';
   } else if (missingConfig === 'apiId') {
-    statusText = `$(gear) ${t('statusBar.notConfiguredApiId')}`;
-    tooltipMessage = t('tooltips.pleaseConfigureApiIdOrKey');
+    statusText = '$(gear) 未配置 API ID/Key';
+    tooltipMessage = '请先配置 API ID 或 API Key（二选一）';
   } else {
-    statusText = `$(gear) ${t('statusBar.notConfigured')}`;
-    tooltipMessage = t('tooltips.pleaseConfigureFirst');
+    statusText = '$(gear) Claude Relay Meter 需要配置';
+    tooltipMessage = '请先配置 API URL（必填）以及 API ID 或 API Key（二选一）';
   }
 
   statusBarItem.text = statusText;
@@ -338,13 +500,13 @@ export function showConfigPrompt(
 
   const tooltip = new vscode.MarkdownString();
   tooltip.isTrusted = true;
-  tooltip.appendMarkdown(t('tooltips.needConfiguration', { message: tooltipMessage }));
-  tooltip.appendMarkdown(`\n\n[${t('tooltips.clickToConfigure')}](command:claude-relay-meter.openSettings)\n\n`);
+  tooltip.appendMarkdown(`⚙️ Claude Relay Meter\n\n需要配置\n\n${tooltipMessage}`);
+  tooltip.appendMarkdown(`\n\n[点击打开设置](command:claude-relay-meter.openSettings)\n\n`);
   statusBarItem.tooltip = tooltip;
 
   statusBarItem.command = 'claude-relay-meter.openSettings';
 
-  // 确保状态栏项可见
+  // 确保��态栏项可见
   statusBarItem.show();
 
   log(`[状态栏] 配置提示已设置：${statusText}`);
@@ -365,7 +527,7 @@ export function createReloadButton(): vscode.StatusBarItem {
 
   // 设置图标和文本
   reloadButton.text = '$(sync)';
-  reloadButton.tooltip = t('tooltips.reloadClaudeConfig');
+  reloadButton.tooltip = '重载配置';
   reloadButton.command = 'claude-relay-meter.reloadClaudeConfig';
 
   log('[状态栏] 重载配置按钮创建成功');

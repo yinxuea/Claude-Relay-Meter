@@ -37,6 +37,23 @@ export interface RelayUserData {
  */
 export interface UsageData {
   total: TotalUsage;
+  models?: ModelUsage[]; // 可选的按模型分类的使用统计
+}
+
+/**
+ * 模型使用统计接口
+ */
+export interface ModelUsage {
+  modelName: string;
+  displayName: string;
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreateTokens: number;
+  cacheReadTokens: number;
+  totalTokens: number;
+  cost: number;
+  formattedCost: string;
 }
 
 /**

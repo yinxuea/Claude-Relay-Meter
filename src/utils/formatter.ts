@@ -21,6 +21,23 @@ export function formatNumber(num: number): string {
 }
 
 /**
+ * 格式化数字，保留指定小数位数，自动去除末尾的零
+ * @param num - 需要格式化的数字
+ * @param decimals - 小数位数，默认为 4
+ * @returns 格式化后的字符串
+ *
+ * 示例：
+ * formatNumberWithDecimals(3.9647, 6) => "3.9647"
+ * formatNumberWithDecimals(10.5000, 2) => "10.5"
+ * formatNumberWithDecimals(100.0000, 0) => "100"
+ */
+export function formatNumberWithDecimals(num: number, decimals: number = 4): string {
+  const factor = Math.pow(10, decimals);
+  const rounded = Math.round(num * factor) / factor;
+  return Number(rounded.toFixed(decimals)).toString();
+}
+
+/**
  * 格式化百分比，最多保留 2 位小数，自动去除末尾的零
  * @param value - 当前值
  * @param total - 总值
@@ -160,21 +177,19 @@ export function formatLargeNumber(num: number): string {
 }
 
 /**
- * 格式化剩余时间，将秒数转换为易读的时间格式
+ * 格式化���余时间，将秒数转换为易读的时间格式
  * @param seconds - 剩余秒数
- * @param t - 国际化翻译函数
  * @returns 格式化后的时间字符串
  *
  * 示例：
- * formatRemainingTime(90061, t) => "1天1小时1分1秒"（中文）
- * formatRemainingTime(90061, t) => "1d 1h 1m 1s"（英文）
- * formatRemainingTime(3661, t) => "1小时1分1秒"（中文）
- * formatRemainingTime(0, t) => "已过期"（中文）/ "Expired"（英文）
+ * formatRemainingTime(90061) => "1天1小时1分1秒"
+ * formatRemainingTime(3661) => "1小时1分1秒"
+ * formatRemainingTime(0) => "已过期"
  */
-export function formatRemainingTime(seconds: number, t: (key: string) => string): string {
+export function formatRemainingTime(seconds: number): string {
   // 如果时间已过期或为负数
   if (seconds <= 0) {
-    return t('time.expired');
+    return '已过期';
   }
 
   // 计算各个时间单位
@@ -186,21 +201,19 @@ export function formatRemainingTime(seconds: number, t: (key: string) => string)
   // 构建时间部分
   const parts: string[] = [];
   if (days > 0) {
-    parts.push(`${days}${t('time.days')}`);
+    parts.push(`${days}天`);
   }
   if (hours > 0) {
-    parts.push(`${hours}${t('time.hours')}`);
+    parts.push(`${hours}小时`);
   }
   if (minutes > 0) {
-    parts.push(`${minutes}${t('time.minutes')}`);
+    parts.push(`${minutes}分`);
   }
   // 如果所有部分都是 0，至少显示秒数
   if (secs > 0 || parts.length === 0) {
-    parts.push(`${secs}${t('time.seconds')}`);
+    parts.push(`${secs}秒`);
   }
 
-  // 根据语言选择合适的分隔符
-  // 中文不需要空格，英文需要空格
-  const separator = t('time.separator');
-  return parts.join(separator);
+  // 中文不需要分隔符，直接连接
+  return parts.join('');
 }

@@ -11,7 +11,7 @@ import * as vscode from 'vscode';
 import { log } from './logger';
 import { readClaudeSettings } from './claudeSettingsReader';
 import * as ConfigManager from './configManager';
-import { t } from './i18n';
+// import { t } from './i18n'; // i18n 已移除
 
 /**
  * 文件监听器实例
@@ -194,17 +194,12 @@ async function promptUserChoice(
   currentConfig: ConfigManager.Config | null
 ): Promise<void> {
   // 构建提示消息
-  const message = t('notifications.claudeConfigChangedDetail', {
-    currentUrl: currentConfig?.apiUrl || t('common.none') || '无',
-    currentKey: ConfigManager.maskApiKey(currentConfig?.apiKey || ''),
-    newUrl: newConfig.apiUrl,
-    newKey: ConfigManager.maskApiKey(newConfig.apiKey)
-  });
+  const message = '检测到 ~/.claude/settings.json 配置变更:\n\n当前: API URL: ' + (currentConfig?.apiUrl || '无') + ' | Key: ' + ConfigManager.maskApiKey(currentConfig?.apiKey || '') + '\n新配置: API URL: ' + newConfig.apiUrl + ' | Key: ' + ConfigManager.maskApiKey(newConfig.apiKey) + '\n\n是否使用新配置?';
 
   // 定义按钮
-  const useNewConfigButton = t('notifications.useNewConfig');
-  const keepCurrentConfigButton = t('notifications.keepCurrentConfig');
-  const openSettingsButton = t('commands.openSettings');
+  const useNewConfigButton = '使用新配置';
+  const keepCurrentConfigButton = '保持当前配置';
+  const openSettingsButton = '设置';
 
   // 显示提示(立即弹出,不等待)
   const choice = await vscode.window.showInformationMessage(
@@ -241,7 +236,7 @@ async function applyNewConfig(newConfig: ConfigManager.Config): Promise<void> {
     await ConfigManager.updateVSCodeConfig(newConfig.apiKey, newConfig.apiUrl);
 
     // 2. 显示成功提示
-    vscode.window.showInformationMessage(t('notifications.configUpdated'));
+    vscode.window.showInformationMessage('配置已更新');
 
     log('[Settings Watcher] 新配置已应用');
 
@@ -269,7 +264,7 @@ async function disableWatching(): Promise<void> {
     stopWatching();
 
     // 3. 显示提示
-    vscode.window.showInformationMessage(t('notifications.watchDisabled'));
+    vscode.window.showInformationMessage('已关闭 Claude Settings 监听,如需重新开启请到设置中启用「监听 Claude Settings 变动」');
 
     log('[Settings Watcher] 监听已关闭');
   } catch (error) {

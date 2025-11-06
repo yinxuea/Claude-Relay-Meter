@@ -15,10 +15,23 @@ tsconfig.json
 .git/**
 .gitignore
 
-# 文档（保留必要的）
-FINAL_CHECK_REPORT.txt
-SECURITY_CHECK.md
-plan.md
+# 开发脚本和工具
+scripts/**
+
+# 文档（只保留核心文档）
+# 保留：README.md, CLAUDE.md, RELEASE.md, 快速使用指南.md
+# 以下文档已被删除或不需要：
+QUICKSTART.md
+PROJECT_SUMMARY.md
+MODIFICATION_SUMMARY.txt
+CHANGELOG.md
+RELEASE_SUMMARY.md
+expImg/**
+images/**
+
+# 包管理文件（只保留 package.json）
+yarn.lock
+package-lock.json
 
 # 编译和打包
 builds/**
@@ -35,3 +48,7 @@ npm-debug.log*
 # ESLint 配置
 .eslintrc*
 eslint.config.mjs
+
+# 其他开发文件
+*.tmp
+*.bak

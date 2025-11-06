@@ -19,7 +19,7 @@ import {
   getApiIdFromKey,
 } from './services/api';
 import { StatusBarConfig } from './interfaces/types';
-import { initializeI18n, t, setOnLanguageChangeCallback } from './utils/i18n';
+// import { initializeI18n, t, setOnLanguageChangeCallback } from './utils/i18n'; // i18n 已移除
 import * as ConfigManager from './utils/configManager';
 import * as ClaudeSettingsWatcher from './utils/claudeSettingsWatcher';
 import { readClaudeSettings } from './utils/claudeSettingsReader';
@@ -40,18 +40,18 @@ export async function activate(context: vscode.ExtensionContext) {
     initializeLogging(context);
 
     // 初始化国际化系统（在日志之后、其他初始化之前）
-    initializeI18n();
+    // initializeI18n(); // i18n 已移除
 
     // 设置语言变更回调
-    setOnLanguageChangeCallback((newLanguage: string, languageLabel: string) => {
-      log(t('logs.languageChanged', { language: newLanguage }));
-      // 刷新状态栏显示
-      if (statusBarItem) {
-        updateStats(); // 重新加载数据以更新显示
-      }
-    });
+    // setOnLanguageChangeCallback((newLanguage: string, languageLabel: string) => {
+    //   log('[日志] 语言已切换: ' + newLanguage);
+    //   // 刷新状态栏显示
+    //   if (statusBarItem) {
+    //     updateStats(); // 重新加载数据以更新显示
+    //   }
+    // }); // i18n 已移除
 
-    log(t('logs.activating'));
+    log('[日志] Claude Relay Meter 插件激活中...');
 
     // 创建状态栏项
     statusBarItem = createStatusBarItem();
@@ -63,10 +63,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // ⚠️ 关键：立即显示状态栏项，确保用户能看到
     // 即使配置无效，状态栏也应该显示提示
-    statusBarItem.text = `$(sync~spin) ${t('statusBar.initializing')}`;
+    statusBarItem.text = '$(sync~spin) Claude Relay Meter 初始化中...';
     statusBarItem.show();
     reloadButton.show();
-    log(t('logs.statusBarCreated'));
+    log('[日志] 状态栏项已创建并显示');
 
     // 注册命令
     registerCommands(context);
@@ -88,7 +88,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     if (!validation.valid) {
       // 配置无效，显示配置提示
-      log(t('logs.configInvalid', { message: validation.message || '' }));
+      log('[日志] 配置无效 - ' + (validation.message || ''));
 
       // ⚠️ 关键：显示配置提示状态栏（这会确保状态栏可见）
       showConfigPrompt(statusBarItem, validation.missingConfig);
@@ -96,18 +96,18 @@ export async function activate(context: vscode.ExtensionContext) {
       // 显示更友好的首次配置提示
       vscode.window
         .showWarningMessage(
-          t('notifications.configInvalid', { message: validation.message || '' }),
-          t('commands.configureNow'),
-          t('commands.later')
+          'Claude Relay Meter: ' + (validation.message || ''),
+          '立即配置',
+          '稍后'
         )
         .then((selection) => {
-          if (selection === t('commands.configureNow')) {
+          if (selection === '立即配置') {
             vscode.commands.executeCommand('claude-relay-meter.openSettings');
           }
         });
     } else {
       // 配置有效，开始更新数据
-      log(t('logs.configValid'));
+      log('[日志] 配置有效，开始获取数据...');
 
       // 显示加载状态
       showLoadingStatus(statusBarItem);
@@ -127,14 +127,14 @@ export async function activate(context: vscode.ExtensionContext) {
       log('[激活] 文件监听已禁用');
     }
 
-    log(t('logs.activationComplete'));
+    log('[日志] 插件激活完成');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logError('[激活] ✗ 插件激活失败', error as Error);
 
     // 确保错误显示给用户
     vscode.window.showErrorMessage(
-      t('errors.activationFailed', { error: errorMessage })
+      'Claude Relay Meter 激活失败：' + errorMessage
     );
 
     // 重新抛出错误以便 VSCode 知道激活失败
@@ -170,7 +170,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
   const refreshCommand = vscode.commands.registerCommand(
     'claude-relay-meter.refreshStats',
     async () => {
-      log(t('logs.manualRefresh'));
+      log('[日志] 手动刷新统计数据');
       await updateStats();
     }
   );
@@ -179,32 +179,11 @@ function registerCommands(context: vscode.ExtensionContext): void {
   const openSettingsCommand = vscode.commands.registerCommand(
     'claude-relay-meter.openSettings',
     () => {
-      log(t('logs.openingSettings'));
+      log('[日志] 打开设置');
       vscode.commands.executeCommand(
         'workbench.action.openSettings',
         'relayMeter'
       );
-    }
-  );
-
-  // 语言选择命令
-  const selectLanguageCommand = vscode.commands.registerCommand(
-    'claude-relay-meter.selectLanguage',
-    async () => {
-      const languages = [
-        { label: '中文', value: 'zh' },
-        { label: 'English', value: 'en' }
-      ];
-      const selected = await vscode.window.showQuickPick(languages, {
-        placeHolder: t('commands.selectLanguagePrompt')
-      });
-      if (selected) {
-        await vscode.workspace.getConfiguration('relayMeter')
-          .update('language', selected.value, true);
-        vscode.window.showInformationMessage(
-          t('commands.languageChanged', { language: selected.label })
-        );
-      }
     }
   );
 
@@ -223,7 +202,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
   const reloadClaudeConfigCommand = vscode.commands.registerCommand(
     'claude-relay-meter.reloadClaudeConfig',
     async () => {
-      log(t('logs.reloadingClaudeConfig'));
+      log('[日志] 重新加载 Claude Settings 配置...');
 
       try {
         // 读取 Claude Settings
@@ -231,7 +210,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
 
         // 检查是否读取到配置
         if (!claudeSettings.apiKey && !claudeSettings.apiUrl) {
-          vscode.window.showWarningMessage(t('notifications.claudeSettingsEmpty'));
+          vscode.window.showWarningMessage('Claude Settings 文件中未找到有效配置');
           return;
         }
 
@@ -244,10 +223,10 @@ function registerCommands(context: vscode.ExtensionContext): void {
           await config.update('apiUrl', claudeSettings.apiUrl, true);
         }
 
-        log(t('logs.claudeConfigReloaded'));
+        log('[日志] Claude Settings 配置已重新加载');
 
         // 显示成功提示
-        vscode.window.showInformationMessage(t('notifications.configReloaded'));
+        vscode.window.showInformationMessage('配置已从 Claude Settings 重新加载');
 
         // 刷新数据
         await updateStats();
@@ -255,7 +234,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logError(`[命令] 重载配置失败：${errorMessage}`);
         vscode.window.showErrorMessage(
-          t('notifications.configReloadFailed', { error: errorMessage })
+          '重载配置失败: ' + errorMessage
         );
       }
     }
@@ -270,7 +249,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
     }
   );
 
-  context.subscriptions.push(refreshCommand, openSettingsCommand, selectLanguageCommand, openWebDashboardCommand, reloadClaudeConfigCommand, manualReloadConfigCommand);
+  context.subscriptions.push(refreshCommand, openSettingsCommand, openWebDashboardCommand, reloadClaudeConfigCommand, manualReloadConfigCommand);
 }
 
 /**
@@ -282,7 +261,7 @@ function registerConfigurationListener(context: vscode.ExtensionContext): void {
     async (event) => {
       // 检查是否是插件相关的配置变更
       if (event.affectsConfiguration('relayMeter')) {
-        log(t('logs.configChanged'));
+        log('[日志] 配置变更，刷新数据');
 
         // 检查是否是监听开关变更
         if (event.affectsConfiguration('relayMeter.watchClaudeSettings')) {
@@ -321,7 +300,7 @@ function registerWindowFocusListener(context: vscode.ExtensionContext): void {
 
     if (isWindowFocused && !wasFocused) {
       // 窗口重新获得焦点，刷新数据
-      log(t('logs.windowFocused'));
+      log('[日志] 窗口获得焦点，刷新数据');
       updateStats();
       startRefreshTimer();
     }
@@ -335,7 +314,7 @@ function registerWindowFocusListener(context: vscode.ExtensionContext): void {
  */
 async function updateStats(): Promise<void> {
   try {
-    log(t('logs.fetchingData'));
+    log('[日志] 开始刷新统计数据...');
 
     // 获取配置
     const config = getConfiguration();
@@ -343,7 +322,7 @@ async function updateStats(): Promise<void> {
     // 先验证基础配置（API URL 和 API ID/Key 至少一个存在）
     const validation = validateApiConfig(config.apiUrl, config.apiId, config.apiKey);
     if (!validation.valid) {
-      log(t('logs.configInvalid', { message: validation.message || '' }), true);
+      log('[日志] 配置无效 - ' + (validation.message || ''), true);
       showConfigPrompt(statusBarItem, validation.missingConfig);
       return;
     }
@@ -354,12 +333,12 @@ async function updateStats(): Promise<void> {
     // 如果 apiId 为空但 apiKey 存在，则通过 apiKey 获取 apiId
     if ((!actualApiId || actualApiId.trim() === '') && config.apiKey && config.apiKey.trim() !== '') {
       try {
-        log(t('api.gettingApiIdFromKey'));
+        log('[API] 检测到 API Key，尝试获取 API ID...');
         actualApiId = await getApiIdFromKey(config.apiUrl, config.apiKey);
         log(`[更新] 通过 API Key 获取到 API ID：${actualApiId}`);
       } catch (error) {
         logError('[更新] 通过 API Key 获取 API ID 失败', error as Error);
-        throw new Error(t('errors.cannotGetApiIdFromKey', { error: (error as Error).message }));
+        throw new Error('无法通过 API Key 获取 API ID：' + (error as Error).message);
       }
     }
 
@@ -377,22 +356,22 @@ async function updateStats(): Promise<void> {
     // 更新状态栏
     updateStatusBar(statusBarItem, data, config.apiUrl, actualApiId);
 
-    log(t('logs.dataFetched'));
+    log('[日志] ��计数据更新成功');
   } catch (error) {
     logError('[更新] 更新统计数据失败', error as Error);
-    showErrorStatus(statusBarItem, t('statusBar.error'));
+    showErrorStatus(statusBarItem, '获取数据失败');
 
     // 显示错误提示（仅在首次失败时显示）
     vscode.window
       .showErrorMessage(
-        t('notifications.errorOccurred', { error: (error as Error).message }),
-        t('notifications.retryOption'),
-        t('notifications.openSettingsOption')
+        'Claude Relay Meter: 获取数据失败 - ' + (error as Error).message,
+        '重试',
+        '打开设置'
       )
       .then((selection) => {
-        if (selection === t('notifications.retryOption')) {
+        if (selection === '重试') {
           updateStats();
-        } else if (selection === t('notifications.openSettingsOption')) {
+        } else if (selection === '打开设置') {
           vscode.commands.executeCommand('claude-relay-meter.openSettings');
         }
       });
@@ -410,7 +389,7 @@ function startRefreshTimer(): void {
   const config = getConfiguration();
   const intervalMs = config.refreshInterval * 1000;
 
-  log(t('logs.timerStarted', { interval: config.refreshInterval }));
+  log('[日志] 启动定时刷新，间隔：' + config.refreshInterval + ' 秒');
 
   // 创建新的定时器
   refreshTimer = setInterval(async () => {
@@ -512,7 +491,7 @@ async function handleManualReloadConfig(): Promise<void> {
     const claudeSettings = readClaudeSettings();
 
     if (!claudeSettings.apiKey || !claudeSettings.apiUrl) {
-      vscode.window.showWarningMessage(t('notifications.claudeSettingsEmpty'));
+      vscode.window.showWarningMessage('Claude Settings 文件中未找到有效配置');
       return;
     }
 
@@ -532,16 +511,11 @@ async function handleManualReloadConfig(): Promise<void> {
     }
 
     // 4. 显示配置对比对话框
-    const message = t('notifications.claudeConfigChangedDetail', {
-      currentUrl: currentConfig?.apiUrl || t('common.none'),
-      currentKey: ConfigManager.maskApiKey(currentConfig?.apiKey || ''),
-      newUrl: newConfig.apiUrl,
-      newKey: ConfigManager.maskApiKey(newConfig.apiKey)
-    });
+    const message = '检测到 ~/.claude/settings.json 配置变更:\\n\\n当前: API URL: ' + (currentConfig?.apiUrl || '无') + ' | Key: ' + ConfigManager.maskApiKey(currentConfig?.apiKey || '') + '\\n新配置: API URL: ' + newConfig.apiUrl + ' | Key: ' + ConfigManager.maskApiKey(newConfig.apiKey) + '\\n\\n是否使用新配置?';
 
-    const useNewConfigButton = t('notifications.useNewConfig');
-    const keepCurrentConfigButton = t('notifications.keepCurrentConfig');
-    const openSettingsButton = t('commands.openSettings');
+    const useNewConfigButton = '使用新配置';
+    const keepCurrentConfigButton = '保持当前配置';
+    const openSettingsButton = '设置';
 
     // 5. 提示用户选择（使用模态对话框）
     const choice = await vscode.window.showInformationMessage(
@@ -556,7 +530,7 @@ async function handleManualReloadConfig(): Promise<void> {
     if (choice === useNewConfigButton) {
       log('[手动更新] 用户选择：使用新配置');
       await ConfigManager.updateVSCodeConfig(newConfig.apiKey, newConfig.apiUrl);
-      vscode.window.showInformationMessage(t('notifications.configUpdated'));
+      vscode.window.showInformationMessage('配置已更新');
 
       // 刷新数据
       await updateStats();

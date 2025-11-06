@@ -2,7 +2,7 @@
   "name": "claude-relay-meter",
   "displayName": "Claude Relay Meter",
   "description": "用于监测 Claude Relay Service 中继服务用量的 VSCode 插件",
-  "version": "1.0.9",
+  "version": "1.0.16",
   "publisher": "claude-relay-meter",
   "icon": "icon.png",
   "repository": {
@@ -31,22 +31,17 @@
     "commands": [
       {
         "command": "claude-relay-meter.refreshStats",
-        "title": "Claude Relay Meter: Refresh Statistics / 刷新统计数据",
+        "title": "Claude Relay Meter: 刷新统计数据",
         "icon": "$(sync)"
       },
       {
         "command": "claude-relay-meter.openSettings",
-        "title": "Claude Relay Meter: Open Settings / 打开设置",
+        "title": "Claude Relay Meter: 打开设置",
         "icon": "$(gear)"
       },
       {
-        "command": "claude-relay-meter.selectLanguage",
-        "title": "Claude Relay Meter: Select Language / 选择语言",
-        "icon": "$(globe)"
-      },
-      {
         "command": "claude-relay-meter.reloadClaudeConfig",
-        "title": "Claude Relay Meter: Reload Claude Configuration / 重载 Claude 配置",
+        "title": "Claude Relay Meter: 重载 Claude 配置",
         "icon": "$(sync)"
       }
     ],
@@ -135,27 +130,13 @@
           "relayMeter.enableLogging": {
             "type": "boolean",
             "default": true,
-            "description": "启用详细日志记录以便调试 / Enable detailed logging for debugging",
-            "scope": "window"
-          },
-          "relayMeter.language": {
-            "type": "string",
-            "default": "zh",
-            "enum": [
-              "zh",
-              "en"
-            ],
-            "enumDescriptions": [
-              "中文 (Chinese)",
-              "English"
-            ],
-            "description": "扩展界面语言 / Extension interface language",
+            "description": "启用详细日志记录以便调试",
             "scope": "window"
           },
           "relayMeter.watchClaudeSettings": {
             "type": "boolean",
             "default": true,
-            "description": "监听 Claude Settings 变动并自动提示更新 / Watch Claude Settings changes and prompt for updates",
+            "description": "监听 Claude Settings 变动并自动提示更新",
             "scope": "window"
           }
         }
@@ -164,12 +145,28 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./ && npm run copy-locales",
-    "copy-locales": "node -e \"const fs=require('fs'),path=require('path'); const src='src/locales',dest='out/locales'; if(fs.existsSync(src)){fs.mkdirSync(dest,{recursive:true}); fs.readdirSync(src).forEach(file=>fs.copyFileSync(path.join(src,file),path.join(dest,file))); console.log('Locales copied to out/locales');}\"",
+    "compile": "tsc -p ./",
+    "copy-locales": "echo 'i18n 已移除，无需复制语言文件'",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile",
     "lint": "eslint src --ext ts",
-    "package": "vsce package"
+    "package": "vsce package -o builds",
+    "release": "node scripts/release.js patch",
+    "release:patch": "node scripts/release.js patch",
+    "release:minor": "node scripts/release.js minor",
+    "release:major": "node scripts/release.js major",
+    "release:install": "node scripts/release.js patch --install",
+    "release:install:patch": "node scripts/release.js patch --install",
+    "release:install:minor": "node scripts/release.js minor --install",
+    "release:install:major": "node scripts/release.js major --install",
+    "r": "npm run release",
+    "r:p": "npm run release:patch",
+    "r:min": "npm run release:minor",
+    "r:maj": "npm run release:major",
+    "r:i": "npm run release:install",
+    "r:i:p": "npm run release:install:patch",
+    "r:i:min": "npm run release:install:minor",
+    "r:i:maj": "npm run release:install:major"
   },
   "devDependencies": {
     "@types/node": "^22.15.20",

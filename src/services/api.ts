@@ -56,6 +56,7 @@ export async function fetchRelayStats(
     }
 
     log('[API] 用量数据获取成功');
+    log('[API] 用量数据获取成功'+response.data);
     return response.data;
   } catch (error) {
     // 处理不同类型的错误
